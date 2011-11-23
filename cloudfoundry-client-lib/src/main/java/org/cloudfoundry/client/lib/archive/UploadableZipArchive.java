@@ -3,6 +3,7 @@ package org.cloudfoundry.client.lib.archive;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -12,7 +13,6 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import org.cloudfoundry.client.lib.util.FilteredIterator;
 import org.springframework.util.FileCopyUtils;
 
 public class UploadableZipArchive implements UploadableArchive {
@@ -21,6 +21,8 @@ public class UploadableZipArchive implements UploadableArchive {
 
     private List<UploadableArchiveEntry> entries;
 
+    private String fileName;
+    
     public UploadableZipArchive(ZipFile zipFile) {
         this.zipFile = zipFile;
         List<UploadableArchiveEntry> entires = new ArrayList<UploadableArchiveEntry>();
@@ -29,45 +31,17 @@ public class UploadableZipArchive implements UploadableArchive {
             entires.add(new EntryAdapter(zipEntries.nextElement()));
         }
         this.entries = entires;
+        this.fileName = new File(zipFile.getName()).getName();
     }
 
     public Iterator<UploadableArchiveEntry> iterator() {
         return entries.iterator();
-
-        //
-        // final Iterator<ZipEntry> entries = new FilterDirectories(
-        // CollectionUtils.toIterator(zipFile.entries()));
-        //
-        // return new Iterator<UploadableArchiveEntry>() {
-        //
-        // public boolean hasNext() {
-        // return entries.hasNext();
-        // }
-        //
-        // public UploadableArchiveEntry next() {
-        // return new EntryAdapter(entries.next());
-        // }
-        //
-        // public void remove() {
-        // throw new UnsupportedOperationException();
-        // }
-        // };
     }
-
-    private static class FilterDirectories extends FilteredIterator<ZipEntry> {
-
-        public FilterDirectories(Iterator<? extends ZipEntry> sourceIterator) {
-            super(sourceIterator);
-        }
-
-        @Override
-        protected boolean isElementFiltered(ZipEntry element) {
-            return false;
-            // return element.isDirectory();
-        }
-
+    
+    public String getFilename() {
+        return fileName;
     }
-
+    
     private class EntryAdapter extends AbstractUploadableArchiveEntry {
 
         private ZipEntry entry;
