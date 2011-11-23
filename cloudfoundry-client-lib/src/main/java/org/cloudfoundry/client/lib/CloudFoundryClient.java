@@ -20,6 +20,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
@@ -41,11 +42,17 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 import org.cloudfoundry.client.lib.CloudApplication.AppState;
+import org.cloudfoundry.client.lib.archive.UploadableArchive;
+import org.cloudfoundry.client.lib.archive.UploadableArchiveEntry;
+import org.cloudfoundry.client.lib.archive.UploadableZipArchive;
+import org.cloudfoundry.client.lib.io.DynamicInputStreamHttpMessageConverter;
+import org.cloudfoundry.client.lib.io.DynamicZipInputStream;
 import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpResponse;
@@ -57,6 +64,7 @@ import org.springframework.http.converter.ResourceHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJacksonHttpMessageConverter;
 import org.springframework.util.Assert;
+import org.springframework.util.FileCopyUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.DefaultResponseErrorHandler;
@@ -146,16 +154,29 @@ public class CloudFoundryClient {
 		StringHttpMessageConverter stringHttpMessageConverter = new StringHttpMessageConverterWithoutMediaType();
 		stringHttpMessageConverter.setWriteAcceptCharset(false);
 		partConverters.add(stringHttpMessageConverter);
-		partConverters.add(new ResourceHttpMessageConverter());
+		partConverters.add(new HackResourceHttpMessageConverter());
+        partConverters.add(new DynamicInputStreamHttpMessageConverter());
 		formPartsMessageConverter.setPartConverters(partConverters);
 		messageConverters.add(new ByteArrayHttpMessageConverter());
 		messageConverters.add(new StringHttpMessageConverter());
-		messageConverters.add(new ResourceHttpMessageConverter());
+		messageConverters.add(new HackResourceHttpMessageConverter());
+		messageConverters.add(new DynamicInputStreamHttpMessageConverter());
 		messageConverters.add(formPartsMessageConverter);
 		messageConverters.add(new MappingJacksonHttpMessageConverter());
 		restTemplate.setMessageConverters(messageConverters);
 	}
 
+	private static class HackResourceHttpMessageConverter extends ResourceHttpMessageConverter {
+	    @Override
+	    protected Long getContentLength(Resource resource, MediaType contentType) throws IOException {
+	        return null;
+	    }
+	}
+	
+    protected RestTemplate getRestTemplate() {
+        return restTemplate;
+    }
+	
 	/**
 	 * Run commands as a different user.  The authenticated user must be
 	 * privileged to run as this user.
@@ -307,49 +328,187 @@ public class CloudFoundryClient {
 		uploadApplication(appName, warFile, null);
 	}
 
-	@SuppressWarnings("unchecked")
 	public void uploadApplication(String appName, File warFile, UploadStatusCallback callback) throws IOException {
-		String resources = null;
-		boolean incremental = true;
-		InputStream warFileStream = null;
-		long warFileLength;
-		if (incremental) {
-			ZipFile archive = new ZipFile(warFile);
-
-			List<Map<String, Object>> matchedResources = restTemplate.postForObject(
-					getUrl("resources"),
-					generateResourcePayload(archive),
-					List.class);
-			if (callback != null) callback.onCheckResources();
-
-			Set<String> matchedFileNames = new HashSet<String>();
-			for (Map<String, Object> entry : matchedResources) {
-				matchedFileNames.add((String) entry.get("fn"));
-			}
-			if (callback != null) callback.onMatchedFileNames(matchedFileNames);
-
-			byte[] incrementalUpload = processMatchedResources(archive, matchedFileNames);
-			if (callback != null) callback.onProcessMatchedResources(incrementalUpload.length);
-
-			ObjectMapper objectMapper = new ObjectMapper();
-			StringWriter writer = new StringWriter();
-			objectMapper.writeValue(writer, matchedResources);
-			resources = writer.toString();
-			warFileStream = new ByteArrayInputStream(incrementalUpload);
-			warFileLength = incrementalUpload.length;
-		} else {
-			warFileStream = new FileInputStream(warFile);
-			warFileLength = warFile.length();
-		}
-
-		restTemplate.put(
-					getUrl("apps/{appName}/application"),
-					generatePartialResourcePayload(new InputStreamResourceWithName(
-							warFileStream, warFileLength, warFile.getName()), resources),
- 					appName);
+	    Assert.notNull(warFile,"WarFile must not be null");
+	    ZipFile zipFile = new ZipFile(warFile);
+	    try {
+	        UploadableArchive archive = new UploadableZipArchive(zipFile);
+	        uploadApplication(appName, archive, callback);
+	    } finally {
+	        zipFile.close();
+	    }
 	}
+
+	public void uploadApplication(String appName, UploadableArchive archive) throws IOException {
+	    uploadApplication(appName, archive, null);
+	}
+
+    public void xuploadApplication(String appName, File warFile, UploadStatusCallback callback) throws IOException {
+        String resources = null;
+        boolean incremental = true;
+        InputStream warFileStream = null;
+        long warFileLength;
+        if (incremental) {
+            ZipFile archive = new ZipFile(warFile);
+
+            List<Map<String, Object>> matchedResources = restTemplate.postForObject(getUrl("resources"), generateResourcePayload(archive), List.class);
+            if (callback != null)
+                callback.onCheckResources();
+
+            Set<String> matchedFileNames = new HashSet<String>();
+            for (Map<String, Object> entry : matchedResources) {
+                matchedFileNames.add((String) entry.get("fn"));
+            }
+            if (callback != null)
+                callback.onMatchedFileNames(matchedFileNames);
+
+            byte[] incrementalUpload = processMatchedResources(archive, matchedFileNames);
+            if (callback != null)
+                callback.onProcessMatchedResources(incrementalUpload.length);
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            StringWriter writer = new StringWriter();
+            objectMapper.writeValue(writer, matchedResources);
+            resources = writer.toString();
+            warFileStream = new ByteArrayInputStream(incrementalUpload);
+            FileCopyUtils.copy(incrementalUpload, new File("/Users/pwebb/temp.zip"));
+            warFileLength = incrementalUpload.length;
+        } else {
+            warFileStream = new FileInputStream(warFile);
+            warFileLength = warFile.length();
+        }
+
+        restTemplate.put(getUrl("apps/{appName}/application"),
+            generatePartialResourcePayload(new InputStreamResourceWithName(warFileStream, warFileLength, warFile.getName()), resources), appName);
+    }
+
+    private MultiValueMap<String, ?> generatePartialResourcePayload(Resource application, String resources) {
+        MultiValueMap<String, Object> payload = new LinkedMultiValueMap<String, Object>(2);
+        payload.add("application", application);
+        if (resources != null) {
+            payload.add("resources", resources);
+        }
+        return payload;
+    }
+
+    private byte[] processMatchedResources(ZipFile archive, Set<String> matchedFileNames) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ZipOutputStream zout = new ZipOutputStream(out);
+
+        Enumeration<? extends ZipEntry> entries = archive.entries();
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = entries.nextElement();
+            if (!matchedFileNames.contains(entry.getName())) {
+                zout.putNextEntry(new ZipEntry(entry.getName()));
+                if (!entry.isDirectory()) {
+                    InputStream in = archive.getInputStream(entry);
+                    byte[] buffer = new byte[16 * 1024];
+                    while (true) {
+                        int read = in.read(buffer);
+                        if (read == -1) {
+                            break;
+                        }
+                        zout.write(buffer, 0, read);
+                    }
+                    in.close();
+                }
+                zout.closeEntry();
+            }
+        }
+        zout.close();
+
+        return out.toByteArray();
+    }
+
+    private List<Map<String, Object>> generateResourcePayload(ZipFile archive) throws IOException {
+        List<Map<String, Object>> payload = new ArrayList<Map<String, Object>>();
+        Enumeration<? extends ZipEntry> entries = archive.entries();
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = entries.nextElement();
+            if (!entry.isDirectory()) {
+                String sha1sum = computeSha1Digest(archive.getInputStream(entry));
+                Map<String, Object> entryPayload = new HashMap<String, Object>();
+                entryPayload.put("size", entry.getSize());
+                entryPayload.put("sha1", sha1sum);
+                entryPayload.put("fn", entry.getName());
+                payload.add(entryPayload);
+            }
+        }
+        return payload;
+    }
+
+    private String computeSha1Digest(InputStream in) throws IOException {
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-1");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+
+        byte[] buffer = new byte[16 * 1024];
+        while (true) {
+            int read = in.read(buffer);
+            if (read == -1) {
+                break;
+            }
+            digest.update(buffer, 0, read);
+        }
+        in.close();
+        return bytesToHex(digest.digest());
+    }
 	
-	private MultiValueMap<String, ?> generatePartialResourcePayload(Resource application, String resources) {
+    @SuppressWarnings("unchecked")
+    public void uploadApplication(String appName, UploadableArchive archive, UploadStatusCallback callback) throws IOException {
+
+        List<Map<String, Object>> matchedResources = restTemplate.postForObject(getUrl("resources"), generateResourcePayload(archive), List.class);
+
+        Set<String> matchedFileNames = new HashSet<String>();
+        for (Map<String, Object> entry : matchedResources) {
+            matchedFileNames.add((String) entry.get("fn"));
+        }
+        if (callback != null) {
+            callback.onMatchedFileNames(matchedFileNames);
+        }
+
+        int totalUncompressedSize = 0;
+        List<DynamicZipInputStream.Entry> entriesToUpload = new ArrayList<DynamicZipInputStream.Entry>();
+        for (UploadableArchiveEntry entry : archive) {
+            if (entry.isDirectory() || !matchedFileNames.contains(entry.getName())) {
+                entriesToUpload.add(new DynamicZipInputStreamEntryAdapter(entry));
+                totalUncompressedSize += entry.getSize();
+            }
+        }
+
+        if (callback != null) {
+            callback.onProcessMatchedResources(totalUncompressedSize);
+        }
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        StringWriter writer = new StringWriter();
+        objectMapper.writeValue(writer, matchedResources);
+        String resources = writer.toString();
+        DynamicZipInputStream tarchiveStream = new DynamicZipInputStream(entriesToUpload);
+        FileCopyUtils.copy(tarchiveStream, new FileOutputStream("/Users/pwebb/temp2.zip"));
+
+        DynamicZipInputStream archiveStream = new DynamicZipInputStream(entriesToUpload);
+        restTemplate.put(getUrl("apps/{appName}/application"), generatePartialResourcePayload(archiveStream, resources), appName);
+    }
+
+    private List<Map<String, Object>> generateResourcePayload(UploadableArchive archive) throws IOException {
+        List<Map<String, Object>> payload = new ArrayList<Map<String, Object>>();
+        for (UploadableArchiveEntry entry : archive) {
+            if (!entry.isDirectory()) {
+                Map<String, Object> entryPayload = new HashMap<String, Object>();
+                entryPayload.put("fn", entry.getName());
+                entryPayload.put("size", entry.getSize());
+                entryPayload.put("sha1", bytesToHex(entry.getSha1Digest()));
+                payload.add(entryPayload);
+            }
+        }
+        return payload;
+    }
+    
+    private MultiValueMap<String, ?> generatePartialResourcePayload(DynamicZipInputStream application, String resources) {
 		MultiValueMap<String, Object> payload = new LinkedMultiValueMap<String, Object>(2);
 		payload.add("application", application);
 		if (resources != null) {
@@ -621,70 +780,22 @@ public class CloudFoundryClient {
 		return hex.toString();
 	}
 
-	private byte[] processMatchedResources(ZipFile archive, Set<String> matchedFileNames)
-				throws IOException {
-		ByteArrayOutputStream out = new ByteArrayOutputStream();
-		ZipOutputStream zout = new ZipOutputStream(out);
+	private static class DynamicZipInputStreamEntryAdapter implements DynamicZipInputStream.Entry {
 
-		Enumeration<? extends ZipEntry> entries = archive.entries();
-		while (entries.hasMoreElements()) {
-			ZipEntry entry = entries.nextElement();
-			if (!matchedFileNames.contains(entry.getName())) {
-				zout.putNextEntry(new ZipEntry(entry.getName()));
-				if (!entry.isDirectory()) {
-					InputStream in = archive.getInputStream(entry);
-					byte[] buffer = new byte[16 * 1024];
-					while(true) {
-						int read = in.read(buffer);
-						if (read == -1) {
-							break;
-						}
-						zout.write(buffer, 0, read);
-					}
-					in.close();
-				}
-				zout.closeEntry();
-			}
-		}
-		zout.close();
+        private UploadableArchiveEntry entry;
 
-		return out.toByteArray();
+        public DynamicZipInputStreamEntryAdapter(UploadableArchiveEntry entry) {
+            this.entry = entry;
+        }
+
+        public String getName() {
+            return entry.getName();
+        }
+
+        public InputStream getInputStream() throws IOException {
+            return entry.getInputStream();
+        }
+	    
 	}
-
-	private List<Map<String, Object>> generateResourcePayload(ZipFile archive) throws IOException {
-		List<Map<String, Object>> payload = new ArrayList<Map<String, Object>>();
-		Enumeration<? extends ZipEntry> entries = archive.entries();
-		while (entries.hasMoreElements()) {
-			ZipEntry entry = entries.nextElement();
-			if (!entry.isDirectory()) {
-				String sha1sum = computeSha1Digest(archive.getInputStream(entry));
-				Map<String, Object> entryPayload = new HashMap<String, Object>();
-				entryPayload.put("size", entry.getSize());
-				entryPayload.put("sha1", sha1sum);
-				entryPayload.put("fn", entry.getName());
-				payload.add(entryPayload);
-			}
-		}
-		return payload;
-	}
-
-	private String computeSha1Digest(InputStream in) throws IOException {
-		MessageDigest digest;
-		try {
-			digest = MessageDigest.getInstance("SHA-1");
-		} catch (NoSuchAlgorithmException e) {
-			throw new RuntimeException(e);
-		}
-
-		byte[] buffer = new byte[16 * 1024];
-		while(true) {
-			int read = in.read(buffer);
-			if (read == -1) {
-				break;
-			}
-			digest.update(buffer, 0, read);
-		}
-		in.close();
-		return bytesToHex(digest.digest());
-	}
+	
 }

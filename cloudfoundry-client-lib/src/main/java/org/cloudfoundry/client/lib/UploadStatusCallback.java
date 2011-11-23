@@ -36,7 +36,7 @@ public interface UploadStatusCallback {
 
 	/**
 	 * Called after the data to be uploaded has been processed
-	 * @param length the size of the upload data
+	 * @param length the size of the upload data (before compression)
 	 */
 	void onProcessMatchedResources(int length);
 }

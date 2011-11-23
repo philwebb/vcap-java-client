@@ -35,13 +35,13 @@ public abstract class DynamicInputStream extends InputStream {
         if (b == null) {
             throw new NullPointerException();
         }
-        if (off < 0 || len < 0 || len > b.length - off) {
+        if (off < 0 || len < 0 || len > (b.length - off)) {
             throw new IndexOutOfBoundsException();
         }
         if (len == 0) {
             return 0;
         }
-        return doRead(b, off, len, false);
+        return doRead(b, off, len, true);
     }
 
     private int doRead(byte[] b, int off, int len, boolean lastWriteWasSuccessful) throws IOException {
