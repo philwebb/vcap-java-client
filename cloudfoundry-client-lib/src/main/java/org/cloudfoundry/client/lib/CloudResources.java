@@ -21,7 +21,13 @@ import org.codehaus.jackson.map.SerializerProvider;
 import org.codehaus.jackson.map.annotate.JsonDeserialize;
 import org.codehaus.jackson.map.annotate.JsonSerialize;
 import org.codehaus.jackson.type.TypeReference;
+import org.springframework.util.Assert;
 
+/**
+ * JSON Object that contains details of a list of {@link CloudResource}s.
+ * 
+ * @author Phillip Webb
+ */
 @JsonSerialize(using = CloudResources.Serializer.class)
 @JsonDeserialize(using = CloudResources.Deserializer.class)
 public class CloudResources {
@@ -30,18 +36,36 @@ public class CloudResources {
 
     private List<CloudResource> resources;
 
+    /**
+     * Create a new {@link CloudResources} instance for the specified resources.
+     * 
+     * @param resources the resources
+     */
     public CloudResources(Collection<? extends CloudResource> resources) {
+        Assert.notNull(resources, "Resources must not be null");
         this.resources = new ArrayList<CloudResource>(resources);
     }
 
+    /**
+     * Create a new {@link CloudResources} instance for the specified resources.
+     * 
+     * @param resources the resources
+     */
     public CloudResources(Iterator<? extends CloudResource> resources) {
+        Assert.notNull(resources, "Resources must not be null");
         this.resources = new ArrayList<CloudResource>();
         while (resources.hasNext()) {
             this.resources.add(resources.next());
         }
     }
 
+    /**
+     * Create a new {@link CloudResources} instance for the specified {@link ApplicationArchive}.
+     * 
+     * @param archive the application archive
+     */
     public CloudResources(ApplicationArchive archive) throws IOException {
+        Assert.notNull(archive, "Archive must not be null");
         this.resources = new ArrayList<CloudResource>();
         for (ApplicationArchive.Entry entry : archive.getEntries()) {
             if (!entry.isDirectory()) {
@@ -54,7 +78,12 @@ public class CloudResources {
         }
     }
 
-    public Set<String> getAllFilenames() {
+    /**
+     * Returns a set of all resource {@link CloudResource#getFilename() filenames}.
+     * 
+     * @return the filenames.
+     */
+    public Set<String> getFilenames() {
         Set<String> filenames = new LinkedHashSet<String>();
         for (CloudResource resource : resources) {
             filenames.add(resource.getFilename());
@@ -62,6 +91,11 @@ public class CloudResources {
         return filenames;
     }
 
+    /**
+     * Returns the list of {@link CloudResource}s.
+     * 
+     * @return the resources as a list
+     */
     public List<CloudResource> asList() {
         return Collections.unmodifiableList(resources);
     }
@@ -77,7 +111,22 @@ public class CloudResources {
         return hex.toString();
     }
 
+    /**
+     * Internal JSON Serializer.
+     */
+    public static class Serializer extends JsonSerializer<CloudResources> {
+
+        @Override
+        public void serialize(CloudResources value, JsonGenerator jgen, SerializerProvider provider) throws IOException, JsonProcessingException {
+            jgen.writeObject(value.asList());
+        }
+    }
+
+    /**
+     * Internal JSON Deserializer.
+     */
     public static class Deserializer extends JsonDeserializer<CloudResources> {
+
         @SuppressWarnings("unchecked")
         @Override
         public CloudResources deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException, JsonProcessingException {
@@ -86,13 +135,4 @@ public class CloudResources {
             return new CloudResources((Collection<? extends CloudResource>) jp.readValueAs(ref));
         }
     }
-
-    public static class Serializer extends JsonSerializer<CloudResources> {
-        @Override
-        public void serialize(CloudResources value, JsonGenerator jgen, SerializerProvider provider) throws IOException, JsonProcessingException {
-            jgen.writeObject(value.asList());
-        }
-
-    }
-
 }

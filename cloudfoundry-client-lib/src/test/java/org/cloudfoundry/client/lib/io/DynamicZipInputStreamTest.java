@@ -36,10 +36,12 @@ public class DynamicZipInputStreamTest {
 
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ZipOutputStream zipOutputStream = new ZipOutputStream(bos);
-        zipOutputStream.putNextEntry(new ZipEntry("/a/b/c"));
+        zipOutputStream.putNextEntry(new ZipEntry("a/b/c"));
         zipOutputStream.write(f1);
         zipOutputStream.closeEntry();
-        zipOutputStream.putNextEntry(new ZipEntry("/d/e/f"));
+        zipOutputStream.putNextEntry(new ZipEntry("a/b/c/d/"));
+        zipOutputStream.closeEntry();
+        zipOutputStream.putNextEntry(new ZipEntry("d/e/f"));
         zipOutputStream.write(f2);
         zipOutputStream.closeEntry();
         zipOutputStream.flush();
@@ -47,8 +49,9 @@ public class DynamicZipInputStreamTest {
         byte[] expected = bos.toByteArray();
 
         List<DynamicZipInputStream.Entry> entries = new ArrayList<DynamicZipInputStream.Entry>();
-        entries.add(newEntry("/a/b/c", f1));
-        entries.add(newEntry("/d/e/f", f2));
+        entries.add(newEntry("a/b/c", f1));
+        entries.add(newEntry("a/b/c/d/", null));
+        entries.add(newEntry("d/e/f", f2));
         DynamicZipInputStream inputStream = new DynamicZipInputStream(entries);
         bos.reset();
         FileCopyUtils.copy(inputStream, bos);
@@ -68,6 +71,9 @@ public class DynamicZipInputStreamTest {
             }
 
             public InputStream getInputStream() {
+                if (content == null) {
+                    return null;
+                }
                 return new ByteArrayInputStream(content);
             }
         };

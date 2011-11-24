@@ -33,7 +33,6 @@ public class DynamicInputStreamTest {
 
     private DynamicInputStream inputStream = new DynamicInputStream() {
 
-
         @Override
         protected boolean writeMoreData() throws IOException {
             numberOfWriteMoreDataCalls++;

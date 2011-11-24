@@ -29,8 +29,6 @@ import java.util.Map;
 import java.util.zip.ZipFile;
 
 import org.cloudfoundry.client.lib.CloudApplication.AppState;
-import org.cloudfoundry.client.lib.archive.ArchivePayload;
-import org.cloudfoundry.client.lib.archive.ArchivePayloadHttpMessageConverter;
 import org.cloudfoundry.client.lib.archive.ApplicationArchive;
 import org.cloudfoundry.client.lib.archive.ZipApplicationArchive;
 import org.codehaus.jackson.JsonGenerationException;
@@ -111,7 +109,7 @@ public class CloudFoundryClient {
 		messageConverters.add(new ByteArrayHttpMessageConverter());
 		messageConverters.add(new StringHttpMessageConverter());
 		messageConverters.add(new ResourceHttpMessageConverter());
-		messageConverters.add(new ArchivePayloadHttpMessageConverter());
+		messageConverters.add(new UploadApplicationPayloadHttpMessageConverter());
 		messageConverters.add(getFormHttpMessageConverter());
 		messageConverters.add(new MappingJacksonHttpMessageConverter());
         return messageConverters;
@@ -129,7 +127,7 @@ public class CloudFoundryClient {
         stringConverter.setWriteAcceptCharset(false);
         partConverters.add(stringConverter);
         partConverters.add(new ResourceHttpMessageConverter());
-        partConverters.add(new ArchivePayloadHttpMessageConverter());
+        partConverters.add(new UploadApplicationPayloadHttpMessageConverter());
         return partConverters;
     }
 
@@ -311,9 +309,9 @@ public class CloudFoundryClient {
             callback = UploadStatusCallback.NONE;
         }
         CloudResources knownRemoteResources = getKnownRemoteResources(archive);
-        callback.onMatchedFileNames(knownRemoteResources.getAllFilenames());
-        callback.onMatchedFileNames(knownRemoteResources.getAllFilenames());
-        ArchivePayload payload = new ArchivePayload(archive, knownRemoteResources);
+        callback.onCheckResources();
+        callback.onMatchedFileNames(knownRemoteResources.getFilenames());
+        UploadApplicationPayload payload = new UploadApplicationPayload(archive, knownRemoteResources);
         callback.onProcessMatchedResources(payload.getTotalUncompressedSize());
         restTemplate.put(getUrl("apps/{appName}/application"), generatePartialResourcePayload(payload, knownRemoteResources), appName);
     }
@@ -323,7 +321,7 @@ public class CloudFoundryClient {
         return restTemplate.postForObject(getUrl("resources"), archiveResources, CloudResources.class);
     }
 
-    private MultiValueMap<String, ?> generatePartialResourcePayload(ArchivePayload application, CloudResources knownRemoteResources) throws JsonGenerationException, JsonMappingException, IOException {
+    private MultiValueMap<String, ?> generatePartialResourcePayload(UploadApplicationPayload application, CloudResources knownRemoteResources) throws JsonGenerationException, JsonMappingException, IOException {
 		MultiValueMap<String, Object> payload = new LinkedMultiValueMap<String, Object>(2);
 		payload.add("application", application);
 	    ObjectMapper mapper = new ObjectMapper();
@@ -610,8 +608,8 @@ public class CloudFoundryClient {
     private static class CloudFoundryFormHttpMessageConverter extends FormHttpMessageConverter {
         @Override
         protected String getFilename(Object part) {
-            if(part instanceof ArchivePayload) {
-                return ((ArchivePayload)part).getArchive().getFilename();
+            if(part instanceof UploadApplicationPayload) {
+                return ((UploadApplicationPayload)part).getArchive().getFilename();
             }
             return super.getFilename(part);
         }

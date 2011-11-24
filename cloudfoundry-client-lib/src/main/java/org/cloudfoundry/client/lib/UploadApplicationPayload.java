@@ -1,17 +1,22 @@
 
-package org.cloudfoundry.client.lib.archive;
+package org.cloudfoundry.client.lib;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Set;
 
-import org.cloudfoundry.client.lib.CloudResources;
+import org.cloudfoundry.client.lib.archive.ApplicationArchive;
 import org.cloudfoundry.client.lib.io.DynamicZipInputStream;
 import org.cloudfoundry.client.lib.io.DynamicZipInputStream.Entry;
 
-//FIXME PW rename
-public class ArchivePayload {
+/**
+ * A payload used to upload application data. The payload data is built from a source {@link ApplicationArchive},
+ * excluding any entries that are already known to the remote server.
+ * 
+ * @author Phillip Webb
+ */
+public class UploadApplicationPayload {
 
     private ApplicationArchive archive;
 
@@ -19,10 +24,17 @@ public class ArchivePayload {
 
     private int totalUncompressedSize;
 
-    public ArchivePayload(ApplicationArchive archive, CloudResources knownRemoteResources) throws IOException {
+    /**
+     * Create a new {@link UploadApplicationPayload}.
+     * 
+     * @param archive the source archive
+     * @param knownRemoteResources resources that are already known on the remote server
+     * @throws IOException
+     */
+    public UploadApplicationPayload(ApplicationArchive archive, CloudResources knownRemoteResources) throws IOException {
         this.archive = archive;
         this.totalUncompressedSize = 0;
-        Set<String> matches = knownRemoteResources.getAllFilenames();
+        Set<String> matches = knownRemoteResources.getFilenames();
         this.entriesToUpload = new ArrayList<DynamicZipInputStream.Entry>();
         for (ApplicationArchive.Entry entry : archive.getEntries()) {
             if (entry.isDirectory() || !matches.contains(entry.getName())) {
@@ -32,14 +44,33 @@ public class ArchivePayload {
         }
     }
 
+    /**
+     * Returns the source archive.
+     * @return the archive
+     */
     public ApplicationArchive getArchive() {
         return archive;
     }
     
+    /**
+     * Returns the total size of the entries to be transfered (before compression).
+     * @return the uncompressed size of the entries.
+     */
+    public int getTotalUncompressedSize() {
+        return totalUncompressedSize;
+    }
+    
+    /**
+     * Returns the payload data as an input stream.
+     * @return the payload data
+     */
     public InputStream getInputStream() {
         return new DynamicZipInputStream(entriesToUpload);
     }
 
+    /**
+     * Internal adapter used to convert {@link ApplicationArchive.Entry} into {@link DynamicZipInputStream.Entry}.
+     */
     private static class DynamicZipInputStreamEntryAdapter implements DynamicZipInputStream.Entry {
 
         private ApplicationArchive.Entry entry;
@@ -53,16 +84,7 @@ public class ArchivePayload {
         }
 
         public InputStream getInputStream() throws IOException {
-            if(entry.isDirectory()) {
-                return null;
-            }
             return entry.getInputStream();
         }
-
     }
-
-    public int getTotalUncompressedSize() {
-        return totalUncompressedSize;
-    }
-
 }
