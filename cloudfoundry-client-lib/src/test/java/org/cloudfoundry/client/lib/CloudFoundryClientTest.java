@@ -493,7 +493,7 @@ public class CloudFoundryClientTest {
 		int[] choices = client.getApplicationMemoryChoices();
 		assertNotNull(choices);
 		assertNotSame(0, choices.length);
-		assertTrue(client.info.getLimits().getMaxTotalMemory() >= choices[choices.length-1]);
+		assertTrue(client.getCloudInfo().getLimits().getMaxTotalMemory() >= choices[choices.length-1]);
 	}
 
 	@Test

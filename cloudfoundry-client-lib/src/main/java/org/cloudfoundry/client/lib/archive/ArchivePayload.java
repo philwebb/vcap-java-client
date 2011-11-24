@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Set;
 
+import org.cloudfoundry.client.lib.CloudFoundryResources;
 import org.cloudfoundry.client.lib.io.DynamicZipInputStream;
 import org.cloudfoundry.client.lib.io.DynamicZipInputStream.Entry;
 
@@ -17,14 +18,13 @@ public class ArchivePayload {
 
     private int totalUncompressedSize;
 
-    public ArchivePayload(UploadableArchive archive, Set<String> matchedFileNames) throws IOException {
-
+    public ArchivePayload(UploadableArchive archive, CloudFoundryResources knownRemoteResources) throws IOException {
         this.archive = archive;
-
         this.totalUncompressedSize = 0;
+        Set<String> matches = knownRemoteResources.getAllFilenames();
         this.entriesToUpload = new ArrayList<DynamicZipInputStream.Entry>();
         for (UploadableArchiveEntry entry : archive) {
-            if (entry.isDirectory() || !matchedFileNames.contains(entry.getName())) {
+            if (entry.isDirectory() || !matches.contains(entry.getName())) {
                 entriesToUpload.add(new DynamicZipInputStreamEntryAdapter(entry));
                 totalUncompressedSize += entry.getSize();
             }
