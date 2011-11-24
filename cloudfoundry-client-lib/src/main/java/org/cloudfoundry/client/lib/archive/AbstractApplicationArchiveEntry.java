@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
 
-public abstract class AbstractUploadableArchiveEntry implements UploadableArchiveEntry {
+public abstract class AbstractApplicationArchiveEntry implements ApplicationArchive.Entry {
 
     protected static final int UNDEFINED_SIZE = -1;
 

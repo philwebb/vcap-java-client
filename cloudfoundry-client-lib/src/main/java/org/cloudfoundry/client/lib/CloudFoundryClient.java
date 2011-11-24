@@ -31,9 +31,11 @@ import java.util.zip.ZipFile;
 import org.cloudfoundry.client.lib.CloudApplication.AppState;
 import org.cloudfoundry.client.lib.archive.ArchivePayload;
 import org.cloudfoundry.client.lib.archive.ArchivePayloadHttpMessageConverter;
-import org.cloudfoundry.client.lib.archive.UploadableArchive;
-import org.cloudfoundry.client.lib.archive.UploadableZipArchive;
+import org.cloudfoundry.client.lib.archive.ApplicationArchive;
+import org.cloudfoundry.client.lib.archive.ZipApplicationArchive;
+import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.JsonParseException;
+import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -128,7 +130,6 @@ public class CloudFoundryClient {
         partConverters.add(stringConverter);
         partConverters.add(new ResourceHttpMessageConverter());
         partConverters.add(new ArchivePayloadHttpMessageConverter());
-        partConverters.add(new MappingJacksonHttpMessageConverter());
         return partConverters;
     }
 
@@ -294,40 +295,40 @@ public class CloudFoundryClient {
 	    Assert.notNull(warFile,"WarFile must not be null");
 	    ZipFile zipFile = new ZipFile(warFile);
 	    try {
-	        UploadableArchive archive = new UploadableZipArchive(zipFile);
+	        ApplicationArchive archive = new ZipApplicationArchive(zipFile);
 	        uploadApplication(appName, archive, callback);
 	    } finally {
 	        zipFile.close();
 	    }
 	}
 
-	public void uploadApplication(String appName, UploadableArchive archive) throws IOException {
+	public void uploadApplication(String appName, ApplicationArchive archive) throws IOException {
 	    uploadApplication(appName, archive, null);
 	}
 
-    public void uploadApplication(String appName, UploadableArchive archive, UploadStatusCallback callback) throws IOException {
-        CloudFoundryResources knownRemoteResources = getKnownRemoteResources(archive);
-        if(callback != null) {
-            callback.onMatchedFileNames(knownRemoteResources.getAllFilenames());
+    public void uploadApplication(String appName, ApplicationArchive archive, UploadStatusCallback callback) throws IOException {
+        if (callback == null) {
+            callback = UploadStatusCallback.NONE;
         }
-        ArchivePayload payload = new ArchivePayload(archive,knownRemoteResources);
-        if (callback != null) {
-            callback.onProcessMatchedResources(payload.getTotalUncompressedSize());
-        }
+        CloudResources knownRemoteResources = getKnownRemoteResources(archive);
+        callback.onMatchedFileNames(knownRemoteResources.getAllFilenames());
+        callback.onMatchedFileNames(knownRemoteResources.getAllFilenames());
+        ArchivePayload payload = new ArchivePayload(archive, knownRemoteResources);
+        callback.onProcessMatchedResources(payload.getTotalUncompressedSize());
         restTemplate.put(getUrl("apps/{appName}/application"), generatePartialResourcePayload(payload, knownRemoteResources), appName);
     }
     
-    private CloudFoundryResources getKnownRemoteResources(UploadableArchive archive) throws IOException {
-        CloudFoundryResources archiveResources = CloudFoundryResources.forArchive(archive);
-        return restTemplate.postForObject(getUrl("resources"), archiveResources, CloudFoundryResources.class);
+    private CloudResources getKnownRemoteResources(ApplicationArchive archive) throws IOException {
+        CloudResources archiveResources = new CloudResources(archive);
+        return restTemplate.postForObject(getUrl("resources"), archiveResources, CloudResources.class);
     }
 
-    private MultiValueMap<String, ?> generatePartialResourcePayload(ArchivePayload application, CloudFoundryResources knownRemoteResources) {
+    private MultiValueMap<String, ?> generatePartialResourcePayload(ArchivePayload application, CloudResources knownRemoteResources) throws JsonGenerationException, JsonMappingException, IOException {
 		MultiValueMap<String, Object> payload = new LinkedMultiValueMap<String, Object>(2);
 		payload.add("application", application);
-		if (knownRemoteResources != null) {
-			payload.add("resources", knownRemoteResources);
-		}
+	    ObjectMapper mapper = new ObjectMapper();
+	    String knownRemoteResourcesPayload = mapper.writeValueAsString(knownRemoteResources);
+		payload.add("resources", knownRemoteResourcesPayload);
 		return payload;
 	}
 

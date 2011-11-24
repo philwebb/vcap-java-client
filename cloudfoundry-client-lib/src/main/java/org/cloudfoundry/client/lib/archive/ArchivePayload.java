@@ -6,24 +6,25 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Set;
 
-import org.cloudfoundry.client.lib.CloudFoundryResources;
+import org.cloudfoundry.client.lib.CloudResources;
 import org.cloudfoundry.client.lib.io.DynamicZipInputStream;
 import org.cloudfoundry.client.lib.io.DynamicZipInputStream.Entry;
 
+//FIXME PW rename
 public class ArchivePayload {
 
-    private UploadableArchive archive;
+    private ApplicationArchive archive;
 
     private ArrayList<Entry> entriesToUpload;
 
     private int totalUncompressedSize;
 
-    public ArchivePayload(UploadableArchive archive, CloudFoundryResources knownRemoteResources) throws IOException {
+    public ArchivePayload(ApplicationArchive archive, CloudResources knownRemoteResources) throws IOException {
         this.archive = archive;
         this.totalUncompressedSize = 0;
         Set<String> matches = knownRemoteResources.getAllFilenames();
         this.entriesToUpload = new ArrayList<DynamicZipInputStream.Entry>();
-        for (UploadableArchiveEntry entry : archive) {
+        for (ApplicationArchive.Entry entry : archive.getEntries()) {
             if (entry.isDirectory() || !matches.contains(entry.getName())) {
                 entriesToUpload.add(new DynamicZipInputStreamEntryAdapter(entry));
                 totalUncompressedSize += entry.getSize();
@@ -31,7 +32,7 @@ public class ArchivePayload {
         }
     }
 
-    public UploadableArchive getArchive() {
+    public ApplicationArchive getArchive() {
         return archive;
     }
     
@@ -41,9 +42,9 @@ public class ArchivePayload {
 
     private static class DynamicZipInputStreamEntryAdapter implements DynamicZipInputStream.Entry {
 
-        private UploadableArchiveEntry entry;
+        private ApplicationArchive.Entry entry;
 
-        public DynamicZipInputStreamEntryAdapter(UploadableArchiveEntry entry) {
+        public DynamicZipInputStreamEntryAdapter(ApplicationArchive.Entry entry) {
             this.entry = entry;
         }
 
@@ -52,6 +53,9 @@ public class ArchivePayload {
         }
 
         public InputStream getInputStream() throws IOException {
+            if(entry.isDirectory()) {
+                return null;
+            }
             return entry.getInputStream();
         }
 

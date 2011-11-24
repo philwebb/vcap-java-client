@@ -1,6 +1,7 @@
 
 package org.cloudfoundry.client.lib.archive;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -23,6 +24,8 @@ import org.springframework.util.FileCopyUtils;
  */
 public class ArchivePayloadHttpMessageConverter implements HttpMessageConverter<ArchivePayload> {
 
+    //FIXME PW rename + check PC
+    
     public boolean canRead(Class<?> clazz, MediaType mediaType) {
         return false;
     }
@@ -45,11 +48,11 @@ public class ArchivePayloadHttpMessageConverter implements HttpMessageConverter<
         HttpHeaders headers = outputMessage.getHeaders();
         if (contentType == null || contentType.isWildcardType() || contentType.isWildcardSubtype()) {
             contentType = MediaType.APPLICATION_OCTET_STREAM;
-
         }
         if (contentType != null) {
             headers.setContentType(contentType);
         }
+        FileCopyUtils.copy(t.getInputStream(), new FileOutputStream("/Users/pwebb/test3.zip"));
         FileCopyUtils.copy(t.getInputStream(), outputMessage.getBody());
         outputMessage.getBody().flush();
     }

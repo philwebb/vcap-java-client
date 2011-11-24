@@ -22,7 +22,19 @@ import java.util.Set;
  * Reports status information when uploading an application.
  */
 public interface UploadStatusCallback {
-
+    
+    /**
+     * Empty implementation
+     */
+    public static final UploadStatusCallback NONE = new UploadStatusCallback() {
+        public void onCheckResources() {
+        }
+        public void onMatchedFileNames(Set<String> matchedFileNames) {
+        }
+        public void onProcessMatchedResources(int length) {
+        }
+    };
+        
 	/**
 	 * Called after the /resources call is made.
 	 */

@@ -1,18 +1,12 @@
 
 package org.cloudfoundry.client.lib;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.codehaus.jackson.annotate.JsonAutoDetect;
 import org.codehaus.jackson.annotate.JsonAutoDetect.Visibility;
-import org.codehaus.jackson.annotate.JsonMethod;
 import org.codehaus.jackson.annotate.JsonProperty;
-import org.codehaus.jackson.map.annotate.JacksonStdImpl;
-import org.springframework.stereotype.Service;
 
 @JsonAutoDetect(fieldVisibility = Visibility.ANY, getterVisibility = Visibility.NONE, creatorVisibility = Visibility.NONE)
-public class CloudFoundryResource {
+public class CloudResource {
 
     @JsonProperty("fn")
     private String filename;
@@ -21,10 +15,10 @@ public class CloudFoundryResource {
 
     private String sha1;
 
-    protected CloudFoundryResource() {
+    protected CloudResource() {
     }
 
-    public CloudFoundryResource(String filename, long size, String sha1) {
+    public CloudResource(String filename, long size, String sha1) {
         super();
         this.filename = filename;
         this.size = size;

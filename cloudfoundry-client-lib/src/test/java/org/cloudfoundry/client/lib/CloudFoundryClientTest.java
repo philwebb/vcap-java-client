@@ -65,7 +65,7 @@ public class CloudFoundryClientTest {
 	private static final String TEST_USER_PASS = System.getProperty("vcap.passwd");
 	private static final String TEST_ADMIN_EMAIL = System.getProperty("vcap.admin.email");
 	private static final String TEST_ADMIN_PASS = System.getProperty("vcap.admin.passwd");
-	private static final String TEST_NAMESPACE = System.getProperty("vcap.test.namespace", TEST_USER_EMAIL.substring(0, TEST_USER_EMAIL.indexOf('@')));
+	private static final String TEST_NAMESPACE = System.getProperty("vcap.test.namespace", TEST_USER_EMAIL.substring(0, TEST_USER_EMAIL.indexOf('@')).replaceAll("\\.", "_"));
 
 	private final String testAppDir = "src/test/resources/apps";
 
