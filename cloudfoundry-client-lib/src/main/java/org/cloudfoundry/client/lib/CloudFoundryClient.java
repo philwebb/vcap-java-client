@@ -285,10 +285,34 @@ public class CloudFoundryClient {
 		restTemplate.postForLocation(getUrl("services"), service);
 	}
 
-	public void uploadApplication(String appName, File warFile) throws IOException {
+
+    /**
+     * Upload an application to cloud foundry.
+     * @param appName the application name
+     * @param warFilePath the path to the application archive
+     * @throws IOException
+     */
+    public void uploadApplication(String appName, String warFilePath) throws IOException {
+        uploadApplication(appName, new File(warFilePath));
+    }
+	
+    /**
+     * Upload an application to cloud foundry.
+     * @param appName the application name
+     * @param warFile the application archive
+     * @throws IOException
+     */
+    public void uploadApplication(String appName, File warFile) throws IOException {
 		uploadApplication(appName, warFile, null);
 	}
 
+    /**
+     * Upload an application to cloud foundry.
+     * @param appName the application name
+     * @param warFile the application archive
+     * @param callback a callback interface used to provide progress information or <tt>null</tt>
+     * @throws IOException
+     */
 	public void uploadApplication(String appName, File warFile, UploadStatusCallback callback) throws IOException {
 	    Assert.notNull(warFile,"WarFile must not be null");
 	    ZipFile zipFile = new ZipFile(warFile);
@@ -300,11 +324,26 @@ public class CloudFoundryClient {
 	    }
 	}
 
+    /**
+     * Upload an application to cloud foundry.
+     * @param appName the application name
+     * @param archive the application archive
+     * @throws IOException
+     */
 	public void uploadApplication(String appName, ApplicationArchive archive) throws IOException {
 	    uploadApplication(appName, archive, null);
 	}
 
+    /**
+     * Upload an application to cloud foundry.
+     * @param appName the application name
+     * @param archive the application archive
+     * @param callback a callback interface used to provide progress information or <tt>null</tt>
+     * @throws IOException
+     */
     public void uploadApplication(String appName, ApplicationArchive archive, UploadStatusCallback callback) throws IOException {
+        Assert.notNull(appName, "AppName must not be null");
+        Assert.notNull(archive, "Archive must not be null");
         if (callback == null) {
             callback = UploadStatusCallback.NONE;
         }
@@ -328,10 +367,6 @@ public class CloudFoundryClient {
 	    String knownRemoteResourcesPayload = mapper.writeValueAsString(knownRemoteResources);
 		payload.add("resources", knownRemoteResourcesPayload);
 		return payload;
-	}
-
-	public void uploadApplication(String appName, String warFilePath) throws IOException {
-		uploadApplication(appName, new File(warFilePath));
 	}
 
 	public void startApplication(String appName) {
